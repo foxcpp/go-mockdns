@@ -77,6 +77,10 @@ func (r *Resolver) targetZone(name string) (cname string, zone Zone, err error) 
 		return "", Zone{}, notFound(name)
 	}
 
+	if rzone.Err != nil {
+		return "", rzone, rzone.Err
+	}
+
 	cname = rzone.CNAME
 
 	if !r.SkipCNAME {
@@ -84,6 +88,9 @@ func (r *Resolver) targetZone(name string) (cname string, zone Zone, err error) 
 			rzone, ok = r.Zones[strings.ToLower(rzone.CNAME)]
 			if !ok {
 				return cname, Zone{}, notFound(rzone.CNAME)
+			}
+			if rzone.Err != nil {
+				return "", rzone, rzone.Err
 			}
 		}
 	}
