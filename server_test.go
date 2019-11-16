@@ -76,3 +76,27 @@ func TestServer_PatchNet(t *testing.T) {
 		t.Errorf("Wrong result, want %v, got %v", want, addrs)
 	}
 }
+
+func TestServer_PatchNet_LookupMX(t *testing.T) {
+	srv, err := NewServer(map[string]Zone{
+		"example.org.": Zone{
+			MX: []net.MX{{Host: "mx.example.org.", Pref: 10}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+
+	var r net.Resolver
+	srv.PatchNet(&r)
+
+	mxs, err := r.LookupMX(context.Background(), "example.org")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(mxs, []*net.MX{{Host: "mx.example.org.", Pref: 10}}) {
+		t.Fatalf("Wrong MXs")
+	}
+}
