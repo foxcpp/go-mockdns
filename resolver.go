@@ -9,6 +9,25 @@ import (
 	"github.com/miekg/dns"
 )
 
+type Zone struct {
+	// Return the specified error on any lookup using this zone.
+	// For Server, non-nil value results in SERVFAIL response.
+	Err error
+
+	// When used with Server, set the Authenticated Data (AD) flag
+	// in the responses.
+	AD bool
+
+	A     []string
+	AAAA  []string
+	TXT   []string
+	PTR   []string
+	CNAME string
+	MX    []net.MX
+	NS    []net.NS
+	SRV   []net.SRV
+}
+
 // Resolver is the struct that implements interface same as net.Resolver
 // and so can be used as a drop-in replacement for it if tested code
 // supports it.

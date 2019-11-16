@@ -100,9 +100,20 @@ func mkCname(name, cname string) *dns.CNAME {
 func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 	reply := new(dns.Msg)
 	reply.SetReply(m)
-	reply.Authoritative = true
+	reply.RecursionAvailable = true
 
 	q := m.Question[0]
+
+	// This does the lookup twice (including lookup* below).
+	// TODO: Avoid this.
+	_, rzone, err := s.r.targetZone(q.Name)
+	if err != nil {
+		writeErr(w, reply, err)
+		return
+	}
+	if rzone.AD {
+		reply.AuthenticatedData = true
+	}
 
 	switch q.Qtype {
 	case dns.TypeA:
@@ -272,7 +283,15 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 		}
 	}
 
-	w.WriteMsg(reply)
+	if err := w.WriteMsg(reply); err != nil {
+		panic(err)
+	}
+}
+
+// LocalAddr returns the local endpoint used by the server. It will always be
+// *net.UDPAddr, however it is also usable for TCP connections.
+func (s *Server) LocalAddr() net.Addr {
+	return s.udpServ.PacketConn.LocalAddr()
 }
 
 // PatchNet configures net.Resolver instance to use this Server object.
