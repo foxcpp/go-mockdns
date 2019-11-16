@@ -3,7 +3,9 @@ package mockdns
 import (
 	"context"
 	"errors"
+	"log"
 	"net"
+	"os"
 	"time"
 
 	"github.com/miekg/dns"
@@ -17,6 +19,12 @@ type Server struct {
 	stopped bool
 	tcpServ dns.Server
 	udpServ dns.Server
+
+	Log Logger
+}
+
+type Logger interface {
+	Printf(f string, args ...interface{})
 }
 
 func NewServer(zones map[string]Zone) (*Server, error) {
@@ -47,10 +55,12 @@ func NewServer(zones map[string]Zone) (*Server, error) {
 	go s.tcpServ.ActivateAndServe()
 	go s.udpServ.ActivateAndServe()
 
+	s.Log = log.New(os.Stderr, "mockdns server: ", log.LstdFlags)
+
 	return s, nil
 }
 
-func writeErr(w dns.ResponseWriter, reply *dns.Msg, err error) {
+func (s *Server) writeErr(w dns.ResponseWriter, reply *dns.Msg, err error) {
 	reply.Rcode = dns.RcodeServerFailure
 	reply.RecursionAvailable = false
 	reply.Answer = nil
@@ -77,7 +87,11 @@ func writeErr(w dns.ResponseWriter, reply *dns.Msg, err error) {
 					Minttl:  60,
 				},
 			}
+		} else {
+			s.Log.Printf("lookup error: %v", err)
 		}
+	} else {
+		s.Log.Printf("lookup error: %v", err)
 	}
 
 	w.WriteMsg(reply)
@@ -108,7 +122,7 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 	// TODO: Avoid this.
 	_, rzone, err := s.r.targetZone(q.Name)
 	if err != nil {
-		writeErr(w, reply, err)
+		s.writeErr(w, reply, err)
 		return
 	}
 	if rzone.AD {
@@ -119,7 +133,7 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 	case dns.TypeA:
 		cname, addrs, err := s.r.lookupA(context.Background(), q.Name)
 		if err != nil {
-			writeErr(w, reply, err)
+			s.writeErr(w, reply, err)
 			return
 		}
 
@@ -144,7 +158,7 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 	case dns.TypeAAAA:
 		cname, addrs, err := s.r.lookupAAAA(context.Background(), q.Name)
 		if err != nil {
-			writeErr(w, reply, err)
+			s.writeErr(w, reply, err)
 			return
 		}
 
@@ -169,7 +183,7 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 	case dns.TypeMX:
 		cname, mxs, err := s.r.lookupMX(context.Background(), q.Name)
 		if err != nil {
-			writeErr(w, reply, err)
+			s.writeErr(w, reply, err)
 			return
 		}
 
@@ -191,7 +205,7 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 	case dns.TypeNS:
 		cname, nss, err := s.r.lookupNS(context.Background(), q.Name)
 		if err != nil {
-			writeErr(w, reply, err)
+			s.writeErr(w, reply, err)
 			return
 		}
 
@@ -212,7 +226,7 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 	case dns.TypeSRV:
 		cname, srvs, err := s.r.lookupSRV(context.Background(), q.Name)
 		if err != nil {
-			writeErr(w, reply, err)
+			s.writeErr(w, reply, err)
 			return
 		}
 
@@ -235,7 +249,7 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 	case dns.TypeCNAME:
 		cname, err := s.r.LookupCNAME(context.Background(), q.Name)
 		if err != nil {
-			writeErr(w, reply, err)
+			s.writeErr(w, reply, err)
 			return
 		}
 
@@ -245,7 +259,7 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 	case dns.TypeTXT:
 		cname, txts, err := s.r.lookupTXT(context.Background(), q.Name)
 		if err != nil {
-			writeErr(w, reply, err)
+			s.writeErr(w, reply, err)
 			return
 		}
 
@@ -281,10 +295,13 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 				Minttl:  60,
 			},
 		}
+	default:
+		s.writeErr(w, reply, errors.New("unsupported qtype"))
+		return
 	}
 
 	if err := w.WriteMsg(reply); err != nil {
-		panic(err)
+		s.Log.Printf("WriteMsg: %v", err)
 	}
 }
 
