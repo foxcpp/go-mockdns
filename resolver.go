@@ -58,7 +58,9 @@ func (r *Resolver) LookupAddr(ctx context.Context, addr string) (names []string,
 		return nil, notFound(arpa)
 	}
 
-	return rzone.PTR, nil
+	names = make([]string, len(names))
+	copy(names, rzone.PTR)
+	return
 }
 
 func (r *Resolver) LookupCNAME(ctx context.Context, host string) (cname string, err error) {
@@ -156,7 +158,9 @@ func (r *Resolver) LookupIPAddr(ctx context.Context, host string) ([]net.IPAddr,
 
 func (r *Resolver) LookupMX(ctx context.Context, name string) ([]*net.MX, error) {
 	_, mx, err := r.lookupMX(ctx, name)
-	return mx, err
+	res := make([]*net.MX, len(mx))
+	copy(res, mx)
+	return res, err
 }
 
 func (r *Resolver) lookupMX(ctx context.Context, name string) (string, []*net.MX, error) {
@@ -176,7 +180,9 @@ func (r *Resolver) lookupMX(ctx context.Context, name string) (string, []*net.MX
 
 func (r *Resolver) LookupNS(ctx context.Context, name string) ([]*net.NS, error) {
 	_, ns, err := r.lookupNS(ctx, name)
-	return ns, err
+	res := make([]*net.NS, len(ns))
+	copy(res, ns)
+	return res, err
 }
 
 func (r *Resolver) lookupNS(ctx context.Context, name string) (string, []*net.NS, error) {
@@ -221,7 +227,9 @@ func (r *Resolver) lookupSRV(ctx context.Context, query string) (cname string, a
 
 func (r *Resolver) LookupTXT(ctx context.Context, name string) ([]string, error) {
 	_, txt, err := r.lookupTXT(ctx, name)
-	return txt, err
+	res := make([]string, len(txt))
+	copy(res, txt)
+	return res, err
 }
 
 func (r *Resolver) lookupTXT(ctx context.Context, name string) (string, []string, error) {
