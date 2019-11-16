@@ -58,7 +58,7 @@ func (r *Resolver) LookupAddr(ctx context.Context, addr string) (names []string,
 		return nil, notFound(arpa)
 	}
 
-	names = make([]string, len(names))
+	names = make([]string, len(rzone.PTR))
 	copy(names, rzone.PTR)
 	return
 }
