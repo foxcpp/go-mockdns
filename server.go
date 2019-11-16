@@ -277,6 +277,24 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 				Txt: []string{txt},
 			})
 		}
+	case dns.TypePTR:
+		rzone, ok := s.r.Zones[q.Name]
+		if !ok {
+			s.writeErr(w, reply, notFound(q.Name))
+			return
+		}
+
+		for _, name := range rzone.PTR {
+			reply.Answer = append(reply.Answer, &dns.PTR{
+				Hdr: dns.RR_Header{
+					Name:   q.Name,
+					Rrtype: dns.TypePTR,
+					Class:  dns.ClassINET,
+					Ttl:    9999,
+				},
+				Ptr: name,
+			})
+		}
 	case dns.TypeSOA:
 		reply.Answer = []dns.RR{
 			&dns.SOA{
