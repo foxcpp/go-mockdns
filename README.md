@@ -44,3 +44,8 @@ fmt.Println(addrs, err)
 // Output:
 // [1.2.3.4] <nil>
 ```
+
+Note, if you need to replace net.Dial calls and tested code supports custom
+net.Dial, patch the resolver object inside it instead of net.DefaultResolver.
+If tested code supports Dialer-like objects - use Resolver itself, it
+implements Dial and DialContext methods.

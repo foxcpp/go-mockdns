@@ -232,3 +232,48 @@ func (r *Resolver) lookupTXT(ctx context.Context, name string) (string, []string
 
 	return cname, rzone.TXT, nil
 }
+
+// Dial implements the function similar to net.Dial that uses Resolver zones
+// to find the the IP address to use. It is very simple and does not fully
+// replicate the net.Dial behavior. Notably it does not implement Fast Fallback
+// and always prefers IPv6 over IPv4.
+func (r *Resolver) Dial(network, addr string) (net.Conn, error) {
+	return r.DialContext(context.Background(), network, addr)
+}
+
+func (r *Resolver) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+
+	ip := net.ParseIP(host)
+	if ip != nil {
+		return net.Dial(network, addr)
+	}
+
+	_, addrs6, err := r.lookupAAAA(ctx, host)
+	if err != nil {
+		return nil, err
+	}
+	_, addrs4, err := r.lookupA(ctx, host)
+	if err != nil {
+		return nil, err
+	}
+	addrs := append(addrs6, addrs4...)
+
+	if len(addrs) == 0 {
+		return nil, notFound(host)
+	}
+
+	var lastErr error
+	for _, addrTry := range addrs {
+		conn, err := net.Dial(network, net.JoinHostPort(addrTry, port))
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		return conn, nil
+	}
+	return nil, lastErr
+}
