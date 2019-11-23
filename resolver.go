@@ -53,9 +53,12 @@ func (r *Resolver) LookupAddr(ctx context.Context, addr string) (names []string,
 		return nil, err
 	}
 
-	rzone, ok := r.Zones[arpa]
+	rzone, ok := r.Zones[strings.ToLower(arpa)]
 	if !ok {
 		return nil, notFound(arpa)
+	}
+	if rzone.Err != nil {
+		return nil, rzone.Err
 	}
 
 	names = make([]string, len(rzone.PTR))
