@@ -314,8 +314,13 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 			},
 		}
 	default:
-		s.writeErr(w, reply, errors.New("unsupported qtype"))
-		return
+		rzone, ok := s.r.Zones[q.Name]
+		if !ok {
+			s.writeErr(w, reply, notFound(q.Name))
+			return
+		}
+
+		reply.Answer = append(reply.Answer, rzone.Misc[dns.Type(q.Qtype)]...)
 	}
 
 	if err := w.WriteMsg(reply); err != nil {

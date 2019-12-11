@@ -26,6 +26,10 @@ type Zone struct {
 	MX    []net.MX
 	NS    []net.NS
 	SRV   []net.SRV
+
+	// Misc includes other associated zone records, they can be returned only
+	// when used with Server.
+	Misc map[dns.Type][]dns.RR
 }
 
 // Resolver is the struct that implements interface same as net.Resolver
