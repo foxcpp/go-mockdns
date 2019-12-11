@@ -87,8 +87,6 @@ func (s *Server) writeErr(w dns.ResponseWriter, reply *dns.Msg, err error) {
 					Minttl:  60,
 				},
 			}
-		} else {
-			s.Log.Printf("lookup error: %v", err)
 		}
 	} else {
 		s.Log.Printf("lookup error: %v", err)
