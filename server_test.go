@@ -50,7 +50,7 @@ func TestServer_PatchNet(t *testing.T) {
 	if !ok {
 		t.Fatalf("err is not *net.DNSError, but %T", err)
 	}
-	if !dnsErr.IsNotFound {
+	if !isNotFound(dnsErr) {
 		t.Fatalf("err.IsNotFound is false, should be true")
 	}
 
@@ -63,7 +63,7 @@ func TestServer_PatchNet(t *testing.T) {
 	if !ok {
 		t.Fatalf("err is not *net.DNSError, but %T", err)
 	}
-	if !dnsErr.IsNotFound {
+	if !isNotFound(dnsErr) {
 		t.Fatalf("err.IsNotFound is false, should be true")
 	}
 

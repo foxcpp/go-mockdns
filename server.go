@@ -67,7 +67,7 @@ func (s *Server) writeErr(w dns.ResponseWriter, reply *dns.Msg, err error) {
 	reply.Extra = nil
 
 	if dnsErr, ok := err.(*net.DNSError); ok {
-		if dnsErr.IsNotFound {
+		if isNotFound(dnsErr) {
 			reply.Rcode = dns.RcodeNameError
 			reply.RecursionAvailable = true
 			reply.Ns = []dns.RR{

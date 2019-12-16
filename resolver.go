@@ -42,15 +42,6 @@ type Resolver struct {
 	SkipCNAME bool
 }
 
-func notFound(host string) error {
-	return &net.DNSError{
-		Err:        "no such host",
-		Name:       host,
-		Server:     "127.0.0.1:53",
-		IsNotFound: true,
-	}
-}
-
 func (r *Resolver) LookupAddr(ctx context.Context, addr string) (names []string, err error) {
 	arpa, err := dns.ReverseAddr(addr)
 	if err != nil {
