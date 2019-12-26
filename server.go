@@ -107,6 +107,26 @@ func mkCname(name, cname string) *dns.CNAME {
 	}
 }
 
+func splitTXT(s string) []string {
+	const maxLen = 255
+
+	parts := make([]string, 0, len(s)/maxLen+1)
+
+	min := func(i, j int) int {
+		if i < j {
+			return i
+		}
+		return j
+	}
+
+	for i := 0; i < len(s)/maxLen+1; i++ {
+		p := s[i*maxLen : min(len(s), (i+1)*maxLen)]
+		parts = append(parts, p)
+	}
+
+	return parts
+}
+
 // ServerDNS implements miekg/dns.Handler. It responds with values from underlying
 // Resolver object.
 func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
@@ -272,7 +292,7 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 					Class:  dns.ClassINET,
 					Ttl:    9999,
 				},
-				Txt: []string{txt},
+				Txt: splitTXT(txt),
 			})
 		}
 	case dns.TypePTR:
