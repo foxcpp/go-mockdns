@@ -131,10 +131,27 @@ func splitTXT(s string) []string {
 // Resolver object.
 func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 	reply := new(dns.Msg)
+
+	if m.MsgHdr.Opcode != dns.OpcodeQuery {
+		reply.SetRcode(m, dns.RcodeRefused)
+		if err := w.WriteMsg(reply); err != nil {
+			s.Log.Printf("WriteMsg: %v", err)
+		}
+		return
+	}
+
 	reply.SetReply(m)
 	reply.RecursionAvailable = true
 
 	q := m.Question[0]
+
+	if q.Qclass != dns.ClassINET {
+		reply.SetRcode(m, dns.RcodeNotImplemented)
+		if err := w.WriteMsg(reply); err != nil {
+			s.Log.Printf("WriteMsg: %v", err)
+		}
+		return
+	}
 
 	// This does the lookup twice (including lookup* below).
 	// TODO: Avoid this.
