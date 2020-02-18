@@ -358,6 +358,8 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 		reply.Answer = append(reply.Answer, rzone.Misc[dns.Type(q.Qtype)]...)
 	}
 
+	s.Log.Printf("DNS TRACE %v", reply.String())
+
 	if err := w.WriteMsg(reply); err != nil {
 		s.Log.Printf("WriteMsg: %v", err)
 	}
