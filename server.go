@@ -34,6 +34,7 @@ func NewServer(zones map[string]Zone) (*Server, error) {
 		},
 		tcpServ: dns.Server{Addr: "127.0.0.1:0", Net: "tcp"},
 		udpServ: dns.Server{Addr: "127.0.0.1:0", Net: "udp"},
+		Log:     log.New(os.Stderr, "mockdns server: ", log.LstdFlags),
 	}
 
 	pconn, err := net.ListenPacket("udp4", "127.0.0.1:0")
@@ -54,8 +55,6 @@ func NewServer(zones map[string]Zone) (*Server, error) {
 
 	go s.tcpServ.ActivateAndServe()
 	go s.udpServ.ActivateAndServe()
-
-	s.Log = log.New(os.Stderr, "mockdns server: ", log.LstdFlags)
 
 	return s, nil
 }
