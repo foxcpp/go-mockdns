@@ -28,13 +28,17 @@ type Logger interface {
 }
 
 func NewServer(zones map[string]Zone) (*Server, error) {
+	return NewServerWithLogger(zones, log.New(os.Stderr, "mockdns server: ", log.LstdFlags))
+}
+
+func NewServerWithLogger(zones map[string]Zone, l Logger) (*Server, error) {
 	s := &Server{
 		r: Resolver{
 			Zones: zones,
 		},
 		tcpServ: dns.Server{Addr: "127.0.0.1:0", Net: "tcp"},
 		udpServ: dns.Server{Addr: "127.0.0.1:0", Net: "udp"},
-		Log:     log.New(os.Stderr, "mockdns server: ", log.LstdFlags),
+		Log:     l,
 	}
 
 	pconn, err := net.ListenPacket("udp4", "127.0.0.1:0")
