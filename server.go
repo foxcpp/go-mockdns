@@ -145,6 +145,7 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 
 	reply.SetReply(m)
 	reply.RecursionAvailable = true
+	reply.Authoritative = true
 
 	q := m.Question[0]
 
