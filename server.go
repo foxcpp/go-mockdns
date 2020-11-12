@@ -20,25 +20,27 @@ type Server struct {
 	tcpServ dns.Server
 	udpServ dns.Server
 
-	Log Logger
+	Log           Logger
+	Authoritative bool
 }
 
 type Logger interface {
 	Printf(f string, args ...interface{})
 }
 
-func NewServer(zones map[string]Zone) (*Server, error) {
-	return NewServerWithLogger(zones, log.New(os.Stderr, "mockdns server: ", log.LstdFlags))
+func NewServer(zones map[string]Zone, authoritative bool) (*Server, error) {
+	return NewServerWithLogger(zones, log.New(os.Stderr, "mockdns server: ", log.LstdFlags), authoritative)
 }
 
-func NewServerWithLogger(zones map[string]Zone, l Logger) (*Server, error) {
+func NewServerWithLogger(zones map[string]Zone, l Logger, authoritative bool) (*Server, error) {
 	s := &Server{
 		r: Resolver{
 			Zones: zones,
 		},
-		tcpServ: dns.Server{Addr: "127.0.0.1:0", Net: "tcp"},
-		udpServ: dns.Server{Addr: "127.0.0.1:0", Net: "udp"},
-		Log:     l,
+		tcpServ:       dns.Server{Addr: "127.0.0.1:0", Net: "tcp"},
+		udpServ:       dns.Server{Addr: "127.0.0.1:0", Net: "udp"},
+		Log:           l,
+		Authoritative: authoritative,
 	}
 
 	pconn, err := net.ListenPacket("udp4", "127.0.0.1:0")
@@ -145,6 +147,10 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 
 	reply.SetReply(m)
 	reply.RecursionAvailable = true
+	if s.Authoritative {
+		reply.Authoritative = true
+		reply.RecursionAvailable = false
+	}
 
 	q := m.Question[0]
 
