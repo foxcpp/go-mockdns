@@ -20,7 +20,7 @@ func TestServer_PatchNet(t *testing.T) {
 		"aaa.example.org.": Zone{
 			CNAME: "example.org.",
 		},
-	})
+	}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +84,7 @@ func TestServer_PatchNet_LookupMX(t *testing.T) {
 		"example.org.": Zone{
 			MX: []net.MX{{Host: "mx.example.org.", Pref: 10}},
 		},
-	})
+	}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +126,7 @@ func TestServer_LookupTLSA(t *testing.T) {
 				},
 			},
 		},
-	})
+	}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,5 +146,32 @@ func TestServer_LookupTLSA(t *testing.T) {
 	}
 	if !reflect.DeepEqual(reply.Answer[0], rec) {
 		t.Errorf("\nWant %#+v\n got %#+v", rec, reply.Answer[0])
+	}
+}
+
+func TestServer_Authoritative(t *testing.T) {
+	srv, err := NewServer(map[string]Zone{
+		"www.example.org.": {
+			CNAME: "foo.bar.com.",
+		},
+	}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv.Resolver().SkipCNAME = true
+	defer srv.Close()
+
+	msg := new(dns.Msg)
+	msg.SetQuestion("www.example.org.", dns.TypeNS)
+	cl := dns.Client{}
+	reply, _, err := cl.Exchange(msg, srv.LocalAddr().String())
+	if err != nil {
+		t.Fatal("Unexpected error:", err)
+	}
+	if len(reply.Answer) != 1 {
+		t.Fatal("Wrong amount of records in response:", len(reply.Answer))
+	}
+	if !reply.MsgHdr.Authoritative {
+		t.Fatal("The authoritative flag should be set")
 	}
 }
