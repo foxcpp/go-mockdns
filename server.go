@@ -132,7 +132,7 @@ func splitTXT(s string) []string {
 	return parts
 }
 
-// ServerDNS implements miekg/dns.Handler. It responds with values from underlying
+// ServeDNS implements miekg/dns.Handler. It responds with values from underlying
 // Resolver object.
 func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 	reply := new(dns.Msg)
