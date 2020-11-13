@@ -32,7 +32,7 @@ srv, _ := mockdns.NewServer(map[string]mockdns.Zone{
     "example.org.": {
         A: []string{"1.2.3.4"},
     },
-})
+}, false)
 defer srv.Close()
 
 srv.PatchNet(net.DefaultResolver)
