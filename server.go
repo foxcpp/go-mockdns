@@ -24,14 +24,17 @@ type Server struct {
 	Authoritative bool
 }
 
+// Logger is the logger interface.
 type Logger interface {
 	Printf(f string, args ...interface{})
 }
 
+// NewServer creates a new server.
 func NewServer(zones map[string]Zone, authoritative bool) (*Server, error) {
 	return NewServerWithLogger(zones, log.New(os.Stderr, "mockdns server: ", log.LstdFlags), authoritative)
 }
 
+// NewServerWithLogger creates a new server and listens to local UDP/TCP ports.
 func NewServerWithLogger(zones map[string]Zone, l Logger, authoritative bool) (*Server, error) {
 	s := &Server{
 		r: Resolver{
@@ -132,7 +135,7 @@ func splitTXT(s string) []string {
 	return parts
 }
 
-// ServerDNS implements miekg/dns.Handler. It responds with values from underlying
+// ServeDNS implements miekg/dns.Handler. It responds with values from underlying
 // Resolver object.
 func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 	reply := new(dns.Msg)
@@ -407,6 +410,7 @@ func (s *Server) PatchNet(r *net.Resolver) {
 	}
 }
 
+// UnpatchNet disables the patch.
 func UnpatchNet(r *net.Resolver) {
 	r.PreferGo = false
 	r.Dial = nil
@@ -418,6 +422,7 @@ func (s *Server) Resolver() *Resolver {
 	return &s.r
 }
 
+// Close stop listening and stops the server.
 func (s *Server) Close() error {
 	s.tcpServ.Shutdown()
 	s.udpServ.Shutdown()

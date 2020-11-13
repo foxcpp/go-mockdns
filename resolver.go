@@ -9,6 +9,7 @@ import (
 	"github.com/miekg/dns"
 )
 
+// Zone is a DNS zone.
 type Zone struct {
 	// Return the specified error on any lookup using this zone.
 	// For Server, non-nil value results in SERVFAIL response.
@@ -42,6 +43,7 @@ type Resolver struct {
 	SkipCNAME bool
 }
 
+// LookupAddr retreives IP addresses associated to PTR records.
 func (r *Resolver) LookupAddr(ctx context.Context, addr string) (names []string, err error) {
 	arpa, err := dns.ReverseAddr(addr)
 	if err != nil {
@@ -61,6 +63,7 @@ func (r *Resolver) LookupAddr(ctx context.Context, addr string) (names []string,
 	return
 }
 
+// LookupCNAME retreives CNAME records targets.
 func (r *Resolver) LookupCNAME(ctx context.Context, host string) (cname string, err error) {
 	rzone, ok := r.Zones[strings.ToLower(host)]
 	if !ok {
@@ -70,6 +73,7 @@ func (r *Resolver) LookupCNAME(ctx context.Context, host string) (cname string, 
 	return rzone.CNAME, nil
 }
 
+// LookupHost retreives IPv4 and IPv6 addresses as a []string for a host.
 func (r *Resolver) LookupHost(ctx context.Context, host string) (addrs []string, err error) {
 	_, addrs4, err := r.lookupA(ctx, host)
 	if err != nil {
@@ -135,6 +139,7 @@ func (r *Resolver) lookupAAAA(ctx context.Context, host string) (cname string, a
 	return cname, rzone.AAAA, nil
 }
 
+// LookupIPAddr retreives IPv4 and IPv6 addresses as a []net.IPaddr for a host.
 func (r *Resolver) LookupIPAddr(ctx context.Context, host string) ([]net.IPAddr, error) {
 	addrs, err := r.LookupHost(ctx, host)
 	if err != nil {
@@ -154,6 +159,7 @@ func (r *Resolver) LookupIPAddr(ctx context.Context, host string) ([]net.IPAddr,
 	return parsed, nil
 }
 
+// LookupMX retreives MX records.
 func (r *Resolver) LookupMX(ctx context.Context, name string) ([]*net.MX, error) {
 	_, mx, err := r.lookupMX(ctx, name)
 	res := make([]*net.MX, len(mx))
@@ -176,6 +182,7 @@ func (r *Resolver) lookupMX(ctx context.Context, name string) (string, []*net.MX
 	return cname, out, nil
 }
 
+// LookupNS retreives NS records.
 func (r *Resolver) LookupNS(ctx context.Context, name string) ([]*net.NS, error) {
 	_, ns, err := r.lookupNS(ctx, name)
 	res := make([]*net.NS, len(ns))
@@ -198,11 +205,13 @@ func (r *Resolver) lookupNS(ctx context.Context, name string) (string, []*net.NS
 	return cname, out, nil
 }
 
+// LookupPort looks up the port for a given network and service.
 func (r *Resolver) LookupPort(ctx context.Context, network, service string) (port int, err error) {
 	// TODO: Check whether it can cause problems with net.DefaultResolver hjacking.
 	return net.LookupPort(network, service)
 }
 
+// LookupSRV retreives SRV records.
 func (r *Resolver) LookupSRV(ctx context.Context, service, proto, name string) (cname string, addrs []*net.SRV, err error) {
 	query := fmt.Sprintf("_%s._%s.%s", service, proto, name)
 	return r.lookupSRV(ctx, query)
@@ -223,6 +232,7 @@ func (r *Resolver) lookupSRV(ctx context.Context, query string) (cname string, a
 	return cname, out, nil
 }
 
+// LookupTXT retreives SRV records.
 func (r *Resolver) LookupTXT(ctx context.Context, name string) ([]string, error) {
 	_, txt, err := r.lookupTXT(ctx, name)
 	res := make([]string, len(txt))
@@ -247,6 +257,7 @@ func (r *Resolver) Dial(network, addr string) (net.Conn, error) {
 	return r.DialContext(context.Background(), network, addr)
 }
 
+// DialContext replicates net.DialContext behaviour that uses Resolver zones.
 func (r *Resolver) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
