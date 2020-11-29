@@ -90,35 +90,38 @@ func (r *Resolver) LookupHost(ctx context.Context, host string) (addrs []string,
 	return addrs, err
 }
 
-func (r *Resolver) targetZone(name string) (cname string, zone Zone, err error) {
-	rzone, ok := r.Zones[strings.ToLower(dns.Fqdn(name))]
+func (r *Resolver) targetZone(name string) (ad bool, rname string, zone Zone, err error) {
+	rname = strings.ToLower(dns.Fqdn(name))
+	rzone, ok := r.Zones[rname]
 	if !ok {
-		return "", Zone{}, notFound(name)
+		return false, "", Zone{}, notFound(name)
 	}
 
 	if rzone.Err != nil {
-		return "", rzone, rzone.Err
+		return false, "", rzone, rzone.Err
 	}
 
-	cname = rzone.CNAME
+	ad = rzone.AD
 
 	if !r.SkipCNAME {
 		for rzone.CNAME != "" {
-			rzone, ok = r.Zones[strings.ToLower(rzone.CNAME)]
+			rname = rzone.CNAME
+			rzone, ok = r.Zones[rname]
 			if !ok {
-				return cname, Zone{}, notFound(rzone.CNAME)
+				return false, rname, Zone{}, notFound(rname)
 			}
 			if rzone.Err != nil {
-				return "", rzone, rzone.Err
+				return false, "", rzone, rzone.Err
 			}
+			ad = ad && rzone.AD
 		}
 	}
 
-	return cname, rzone, nil
+	return ad, rname, rzone, nil
 }
 
 func (r *Resolver) lookupA(ctx context.Context, host string) (cname string, addrs []string, err error) {
-	cname, rzone, err := r.targetZone(host)
+	_, cname, rzone, err := r.targetZone(host)
 	if err != nil {
 		return cname, nil, err
 	}
@@ -127,7 +130,7 @@ func (r *Resolver) lookupA(ctx context.Context, host string) (cname string, addr
 }
 
 func (r *Resolver) lookupAAAA(ctx context.Context, host string) (cname string, addrs []string, err error) {
-	cname, rzone, err := r.targetZone(host)
+	_, cname, rzone, err := r.targetZone(host)
 	if err != nil {
 		return cname, nil, err
 	}
@@ -162,7 +165,7 @@ func (r *Resolver) LookupMX(ctx context.Context, name string) ([]*net.MX, error)
 }
 
 func (r *Resolver) lookupMX(ctx context.Context, name string) (string, []*net.MX, error) {
-	cname, rzone, err := r.targetZone(name)
+	_, cname, rzone, err := r.targetZone(name)
 	if err != nil {
 		return "", nil, err
 	}
@@ -184,7 +187,7 @@ func (r *Resolver) LookupNS(ctx context.Context, name string) ([]*net.NS, error)
 }
 
 func (r *Resolver) lookupNS(ctx context.Context, name string) (string, []*net.NS, error) {
-	cname, rzone, err := r.targetZone(name)
+	_, cname, rzone, err := r.targetZone(name)
 	if err != nil {
 		return "", nil, err
 	}
@@ -209,7 +212,7 @@ func (r *Resolver) LookupSRV(ctx context.Context, service, proto, name string) (
 }
 
 func (r *Resolver) lookupSRV(ctx context.Context, query string) (cname string, addrs []*net.SRV, err error) {
-	cname, rzone, err := r.targetZone(query)
+	_, cname, rzone, err := r.targetZone(query)
 	if err != nil {
 		return "", nil, err
 	}
@@ -231,7 +234,7 @@ func (r *Resolver) LookupTXT(ctx context.Context, name string) ([]string, error)
 }
 
 func (r *Resolver) lookupTXT(ctx context.Context, name string) (string, []string, error) {
-	cname, rzone, err := r.targetZone(name)
+	_, cname, rzone, err := r.targetZone(name)
 	if err != nil {
 		return "", nil, err
 	}

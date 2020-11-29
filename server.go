@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/miekg/dns"
@@ -154,6 +155,8 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 
 	q := m.Question[0]
 
+	qname := strings.ToLower(dns.Fqdn(q.Name))
+
 	if q.Qclass != dns.ClassINET {
 		reply.SetRcode(m, dns.RcodeNotImplemented)
 		if err := w.WriteMsg(reply); err != nil {
@@ -162,28 +165,33 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 		return
 	}
 
+	qnameZone, ok := s.r.Zones[qname]
+	if !ok {
+		s.writeErr(w, reply, notFound(qname))
+		return
+	}
+
 	// This does the lookup twice (including lookup* below).
 	// TODO: Avoid this.
-	_, rzone, err := s.r.targetZone(q.Name)
+	ad, rname, _, err := s.r.targetZone(qname)
 	if err != nil {
 		s.writeErr(w, reply, err)
 		return
 	}
-	if rzone.AD {
-		reply.AuthenticatedData = true
+	reply.AuthenticatedData = ad
+
+	if rname != qname {
+		reply.Answer = append(reply.Answer, mkCname(qname, rname))
 	}
 
 	switch q.Qtype {
 	case dns.TypeA:
-		cname, addrs, err := s.r.lookupA(context.Background(), q.Name)
+		_, addrs, err := s.r.lookupA(context.Background(), qname)
 		if err != nil {
 			s.writeErr(w, reply, err)
 			return
 		}
 
-		if cname != "" {
-			reply.Answer = append(reply.Answer, mkCname(q.Name, cname))
-		}
 		for _, addr := range addrs {
 			parsed := net.ParseIP(addr)
 			if parsed == nil {
@@ -191,7 +199,7 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 			}
 			reply.Answer = append(reply.Answer, &dns.A{
 				Hdr: dns.RR_Header{
-					Name:   q.Name,
+					Name:   rname,
 					Rrtype: dns.TypeA,
 					Class:  dns.ClassINET,
 					Ttl:    9999,
@@ -200,15 +208,12 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 			})
 		}
 	case dns.TypeAAAA:
-		cname, addrs, err := s.r.lookupAAAA(context.Background(), q.Name)
+		_, addrs, err := s.r.lookupAAAA(context.Background(), q.Name)
 		if err != nil {
 			s.writeErr(w, reply, err)
 			return
 		}
 
-		if cname != "" {
-			reply.Answer = append(reply.Answer, mkCname(q.Name, cname))
-		}
 		for _, addr := range addrs {
 			parsed := net.ParseIP(addr)
 			if parsed == nil {
@@ -216,7 +221,7 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 			}
 			reply.Answer = append(reply.Answer, &dns.AAAA{
 				Hdr: dns.RR_Header{
-					Name:   q.Name,
+					Name:   rname,
 					Rrtype: dns.TypeAAAA,
 					Class:  dns.ClassINET,
 					Ttl:    9999,
@@ -225,19 +230,16 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 			})
 		}
 	case dns.TypeMX:
-		cname, mxs, err := s.r.lookupMX(context.Background(), q.Name)
+		_, mxs, err := s.r.lookupMX(context.Background(), q.Name)
 		if err != nil {
 			s.writeErr(w, reply, err)
 			return
 		}
 
-		if cname != "" {
-			reply.Answer = append(reply.Answer, mkCname(q.Name, cname))
-		}
 		for _, mx := range mxs {
 			reply.Answer = append(reply.Answer, &dns.MX{
 				Hdr: dns.RR_Header{
-					Name:   q.Name,
+					Name:   rname,
 					Rrtype: dns.TypeMX,
 					Class:  dns.ClassINET,
 					Ttl:    9999,
@@ -259,7 +261,7 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 		for _, ns := range nss {
 			reply.Answer = append(reply.Answer, &dns.NS{
 				Hdr: dns.RR_Header{
-					Name:   q.Name,
+					Name:   rname,
 					Rrtype: dns.TypeNS,
 					Class:  dns.ClassINET,
 					Ttl:    9999,
@@ -268,19 +270,16 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 			})
 		}
 	case dns.TypeSRV:
-		cname, srvs, err := s.r.lookupSRV(context.Background(), q.Name)
+		_, srvs, err := s.r.lookupSRV(context.Background(), q.Name)
 		if err != nil {
 			s.writeErr(w, reply, err)
 			return
 		}
 
-		if cname != "" {
-			reply.Answer = append(reply.Answer, mkCname(q.Name, cname))
-		}
 		for _, srv := range srvs {
 			reply.Answer = append(reply.Answer, &dns.SRV{
 				Hdr: dns.RR_Header{
-					Name:   q.Name,
+					Name:   rname,
 					Rrtype: dns.TypeSRV,
 					Class:  dns.ClassINET,
 					Ttl:    9999,
@@ -291,29 +290,18 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 			})
 		}
 	case dns.TypeCNAME:
-		cname, err := s.r.LookupCNAME(context.Background(), q.Name)
-		if err != nil {
-			s.writeErr(w, reply, err)
-			return
-		}
-
-		if cname != "" {
-			reply.Answer = append(reply.Answer, mkCname(q.Name, cname))
-		}
+		reply.AuthenticatedData = qnameZone.AD
 	case dns.TypeTXT:
-		cname, txts, err := s.r.lookupTXT(context.Background(), q.Name)
+		_, txts, err := s.r.lookupTXT(context.Background(), q.Name)
 		if err != nil {
 			s.writeErr(w, reply, err)
 			return
 		}
 
-		if cname != "" {
-			reply.Answer = append(reply.Answer, mkCname(q.Name, cname))
-		}
 		for _, txt := range txts {
 			reply.Answer = append(reply.Answer, &dns.TXT{
 				Hdr: dns.RR_Header{
-					Name:   q.Name,
+					Name:   rname,
 					Rrtype: dns.TypeTXT,
 					Class:  dns.ClassINET,
 					Ttl:    9999,
@@ -331,7 +319,7 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 		for _, name := range rzone.PTR {
 			reply.Answer = append(reply.Answer, &dns.PTR{
 				Hdr: dns.RR_Header{
-					Name:   q.Name,
+					Name:   rname,
 					Rrtype: dns.TypePTR,
 					Class:  dns.ClassINET,
 					Ttl:    9999,
