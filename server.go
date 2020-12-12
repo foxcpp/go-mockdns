@@ -44,13 +44,17 @@ func NewServerWithLogger(zones map[string]Zone, l Logger, authoritative bool) (*
 		Authoritative: authoritative,
 	}
 
-	pconn, err := net.ListenPacket("udp4", "127.0.0.1:0")
+	tcpL, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
 		return nil, err
 	}
 
-	// Use same endpoint for TCP for simplicity.
-	tcpL, err := net.Listen("tcp4", pconn.LocalAddr().String())
+	// Note we bind TCP on automatic port first since it is more likely to be
+	// already used. Then we bind UDP on the same port, hoping it is
+	// not taken. We avoid using different ports for TCP and UDP since
+	// some applications do not support using a different TCP/UDP ports
+	// for DNS.
+	pconn, err := net.ListenPacket("udp4", tcpL.Addr().String())
 	if err != nil {
 		return nil, err
 	}
