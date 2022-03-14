@@ -69,3 +69,40 @@ func TestResolver_LookupHost(t *testing.T) {
 		t.Errorf("Wrong result, want %v, got %v", want, addrs)
 	}
 }
+
+func TestResolver_LookupIP(t *testing.T) {
+	r := &Resolver{Zones: map[string]Zone{
+		"example.com.": {
+			A:    []string{"192.168.0.1", "10.0.0.1"},
+			AAAA: []string{"2001:db8::1", "2001:db8::2"},
+		},
+	}}
+	cases := []struct {
+		name    string
+		network string
+		host    string
+		want    []string
+	}{
+		{name: "IPv4 Only", network: "ip4", host: "example.com", want: []string{"192.168.0.1", "10.0.0.1"}},
+		{name: "IPv6 Only", network: "ip6", host: "example.com", want: []string{"2001:db8::1", "2001:db8::2"}},
+		{name: "IPv4&IPv6", network: "ip", host: "example.com", want: []string{"192.168.0.1", "10.0.0.1", "2001:db8::1", "2001:db8::2"}},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := r.LookupIP(context.Background(), tt.network, tt.host)
+			if err != nil {
+				t.Fatal(err)
+			}
+			items := make([]string, len(got))
+			for i, ip := range got {
+				items[i] = ip.String()
+			}
+			sort.Strings(items)
+			sort.Strings(tt.want)
+			if !reflect.DeepEqual(items, tt.want) {
+				t.Errorf("Wrong result, want %v, got %v", tt.want, items)
+			}
+		})
+
+	}
+}
