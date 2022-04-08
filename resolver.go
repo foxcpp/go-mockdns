@@ -174,6 +174,10 @@ func (r *Resolver) LookupIP(ctx context.Context, network, host string) ([]net.IP
 		return nil, err
 	}
 
+	if len(addrs) == 0 {
+		return nil, notFound(host)
+	}
+
 	parsed := make([]net.IP, len(addrs))
 	for i, addr := range addrs {
 		parsed[i] = net.ParseIP(addr)
