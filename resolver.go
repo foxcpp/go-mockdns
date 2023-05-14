@@ -36,13 +36,17 @@ type Zone struct {
 // and so can be used as a drop-in replacement for it if tested code
 // supports it.
 type Resolver struct {
-	Zones map[string]Zone
+	zonesMutex sync.RWMutex
+	Zones      map[string]Zone
 
 	// Don't follow CNAME in Zones for Lookup*.
-	SkipCNAME bool
+	skipCNAME bool
 }
 
 func (r *Resolver) LookupAddr(ctx context.Context, addr string) (names []string, err error) {
+	r.zonesMutex.RLock()
+	defer r.zonesMutex.RUnlock()
+
 	arpa, err := dns.ReverseAddr(addr)
 	if err != nil {
 		return nil, err
@@ -62,6 +66,9 @@ func (r *Resolver) LookupAddr(ctx context.Context, addr string) (names []string,
 }
 
 func (r *Resolver) LookupCNAME(ctx context.Context, host string) (cname string, err error) {
+	r.zonesMutex.RLock()
+	defer r.zonesMutex.RUnlock()
+
 	rzone, ok := r.Zones[strings.ToLower(host)]
 	if !ok {
 		return "", notFound(host)
@@ -91,6 +98,9 @@ func (r *Resolver) LookupHost(ctx context.Context, host string) (addrs []string,
 }
 
 func (r *Resolver) targetZone(name string) (ad bool, rname string, zone Zone, err error) {
+	r.zonesMutex.RLock()
+	defer r.zonesMutex.RUnlock()
+
 	rname = strings.ToLower(dns.Fqdn(name))
 	rzone, ok := r.Zones[rname]
 	if !ok {
@@ -103,7 +113,7 @@ func (r *Resolver) targetZone(name string) (ad bool, rname string, zone Zone, er
 
 	ad = rzone.AD
 
-	if !r.SkipCNAME {
+	if !r.skipCNAME {
 		for rzone.CNAME != "" {
 			rname = rzone.CNAME
 			rzone, ok = r.Zones[rname]
@@ -313,4 +323,19 @@ func (r *Resolver) DialContext(ctx context.Context, network, addr string) (net.C
 		return conn, nil
 	}
 	return nil, lastErr
+}
+
+func (r *Resolver) GetZone(name string) (Zone, bool) {
+	r.zonesMutex.RLock()
+	defer r.zonesMutex.RUnlock()
+
+	zone, ok := r.Zones[name]
+	return zone, ok
+}
+
+func (r *Resolver) SetSkipCNAME(skip bool) {
+	r.zonesMutex.Lock()
+	defer r.zonesMutex.Unlock()
+
+	r.skipCNAME = skip
 }

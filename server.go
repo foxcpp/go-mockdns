@@ -169,7 +169,7 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 		return
 	}
 
-	qnameZone, ok := s.r.Zones[qname]
+	qnameZone, ok := s.r.GetZone(qname)
 	if !ok {
 		s.writeErr(w, reply, notFound(qname))
 		return
@@ -314,7 +314,7 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 			})
 		}
 	case dns.TypePTR:
-		rzone, ok := s.r.Zones[q.Name]
+		rzone, ok := s.r.GetZone(q.Name)
 		if !ok {
 			s.writeErr(w, reply, notFound(q.Name))
 			return
@@ -350,7 +350,7 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 			},
 		}
 	default:
-		rzone, ok := s.r.Zones[q.Name]
+		rzone, ok := s.r.GetZone(q.Name)
 		if !ok {
 			s.writeErr(w, reply, notFound(q.Name))
 			return

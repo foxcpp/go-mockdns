@@ -158,7 +158,7 @@ func TestServer_Authoritative(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv.Resolver().SkipCNAME = true
+	srv.Resolver().SetSkipCNAME(true)
 	defer srv.Close()
 
 	msg := new(dns.Msg)
