@@ -2,6 +2,7 @@ package mockdns
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"reflect"
 	"sort"
@@ -173,5 +174,160 @@ func TestServer_Authoritative(t *testing.T) {
 	}
 	if !reply.MsgHdr.Authoritative {
 		t.Fatal("The authoritative flag should be set")
+	}
+}
+
+func TestServer_AddZone_Simple(t *testing.T) {
+	const (
+		initialZoneName    = "initial.example."
+		additionalZoneName = "additional.example."
+		expectedName       = "resolved.example"
+	)
+
+	// create server with initial zone record
+	srv, err := NewServer(map[string]Zone{
+		initialZoneName: Zone{
+			CNAME: expectedName,
+		},
+	}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+
+	// ensure initial zone record resolves correctly
+	resolvedInitialName, err := srv.Resolver().LookupCNAME(context.Background(), initialZoneName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if expectedName != resolvedInitialName {
+		t.Fatalf("expected: %s; got: %s", expectedName, resolvedInitialName)
+	}
+
+	// add additional zone record
+	err = srv.AddZone(additionalZoneName, Zone{
+		CNAME: expectedName,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// ensure additional zone record resolves correctly
+	resolvedAdditionalName, err := srv.Resolver().LookupCNAME(context.Background(), additionalZoneName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if expectedName != resolvedAdditionalName {
+		t.Fatalf("expected: %s; got: %s", expectedName, resolvedInitialName)
+	}
+}
+
+func TestServer_AddZone_Existing(t *testing.T) {
+	const (
+		initialZoneName = "initial.example."
+		expectedName    = "expected.example"
+		unexpectedName  = "unexpected.example"
+	)
+
+	var expectedErr = fmt.Errorf(ErrExistingZoneFmt, initialZoneName)
+
+	// create server with initial zone record
+	srv, err := NewServer(map[string]Zone{
+		initialZoneName: Zone{
+			CNAME: expectedName,
+		},
+	}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+
+	// ensure initial zone record resolves correctly
+	resolvedInitialName, err := srv.Resolver().LookupCNAME(context.Background(), initialZoneName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if expectedName != resolvedInitialName {
+		t.Fatalf("expected: %q but got: %q", initialZoneName, resolvedInitialName)
+	}
+
+	// attempt to add existing zone record
+	err = srv.AddZone(initialZoneName, Zone{
+		CNAME: unexpectedName,
+	})
+	if expectedErr.Error() != err.Error() {
+		t.Fatalf("expected error %q but got %q", expectedErr, err)
+	}
+
+	// ensure initial zone record resolves correctly
+	resolvedInitialName, err = srv.Resolver().LookupCNAME(context.Background(), initialZoneName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if expectedName != resolvedInitialName {
+		t.Fatalf("expected: %q but got: %q", initialZoneName, resolvedInitialName)
+	}
+
+	// ensure unexpected zone record does not resolve
+	_, err = srv.Resolver().LookupCNAME(context.Background(), unexpectedName)
+	if err == nil {
+		t.Fatal("expected error but got nil")
+	}
+}
+
+func TestServer_AddZone_Concurrent(t *testing.T) {
+	const (
+		initialZoneName    = "initial.example."
+		additionalZoneName = "additional.example."
+		expectedName       = "resolved.example"
+	)
+
+	var (
+		errCh = make(chan error, 1)
+	)
+
+	// create server with initial zone record
+	srv, err := NewServer(map[string]Zone{
+		initialZoneName: Zone{
+			CNAME: expectedName,
+		},
+	}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+
+	go func() {
+		// add additional zone record
+		err := srv.AddZone(additionalZoneName, Zone{
+			CNAME: expectedName,
+		})
+		if err != nil {
+			errCh <- err
+		}
+
+		// ensure additional zone record resolves correctly
+		resolvedAdditionalName, err := srv.Resolver().LookupCNAME(context.Background(), additionalZoneName)
+		if err != nil {
+			errCh <- err
+		}
+		if expectedName != resolvedAdditionalName {
+			errCh <- fmt.Errorf("expected: %s but got: %s", expectedName, resolvedAdditionalName)
+		}
+
+		close(errCh)
+	}()
+
+	// ensure initial zone record resolves correctly
+	resolvedInitialName, err := srv.Resolver().LookupCNAME(context.Background(), initialZoneName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if expectedName != resolvedInitialName {
+		t.Fatalf("expected: %s; got: %s", expectedName, resolvedInitialName)
+	}
+
+	if err := <-errCh; err != nil {
+		t.Fatalf("unexpected error: %s", err)
 	}
 }

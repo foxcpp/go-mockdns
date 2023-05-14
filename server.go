@@ -399,6 +399,10 @@ func (s *Server) PatchNet(r *net.Resolver) {
 	}
 }
 
+func (s *Server) AddZone(name string, zone Zone) error {
+	return s.r.AddZone(name, zone)
+}
+
 func UnpatchNet(r *net.Resolver) {
 	r.PreferGo = false
 	r.Dial = nil

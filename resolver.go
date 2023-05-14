@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync"
 
 	"github.com/miekg/dns"
 )
+
+const ErrExistingZoneFmt = "attempted to add existing zone %q"
 
 type Zone struct {
 	// Return the specified error on any lookup using this zone.
@@ -323,6 +326,18 @@ func (r *Resolver) DialContext(ctx context.Context, network, addr string) (net.C
 		return conn, nil
 	}
 	return nil, lastErr
+}
+
+func (r *Resolver) AddZone(name string, zone Zone) error {
+	r.zonesMutex.Lock()
+	defer r.zonesMutex.Unlock()
+
+	if _, ok := r.Zones[name]; ok {
+		return fmt.Errorf(ErrExistingZoneFmt, name)
+	}
+
+	r.Zones[name] = zone
+	return nil
 }
 
 func (r *Resolver) GetZone(name string) (Zone, bool) {
