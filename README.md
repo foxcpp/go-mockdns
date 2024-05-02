@@ -47,3 +47,53 @@ Note, if you need to replace net.Dial calls and tested code supports custom
 net.Dial, patch the resolver object inside it instead of net.DefaultResolver.
 If tested code supports Dialer-like objects - use Resolver itself, it
 implements Dial and DialContext methods.
+
+### Complete Example for Unit Tests
+
+Imagine some business code which involves DNS lookups:
+
+```go
+package domain
+
+import "net"
+
+func QueryTxtRecord(fqdn string) ([]string, error) {
+	txtRecords, err := net.LookupTXT(fqdn)
+    // Do some other stuff here...	
+    return txtRecords, err
+}
+```
+
+Setup mocked DNS in your tests:
+
+```go
+package domain
+
+import (
+	"github.com/foxcpp/go-mockdns"
+	"github.com/stretchr/testify/assert"
+	"log"
+	"net"
+	"testing"
+)
+
+func TestQueryTxtRecord(t *testing.T) {
+	srv, err := mockdns.NewServer(map[string]mockdns.Zone{
+		"foo.example.com.": { // Dot at the end is mandatory.
+			TXT: []string{"Hello, world!"},
+		},
+	}, false)
+	defer srv.Close()
+	
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	srv.PatchNet(net.DefaultResolver)
+	defer mockdns.UnpatchNet(net.DefaultResolver)
+
+	txtRecords, err = QueryTxtRecord("foo.example.com")
+
+	// Assert here.
+}
+```
