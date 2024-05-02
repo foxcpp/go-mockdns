@@ -1,13 +1,11 @@
-go-mockdns
-============
+# go-mockdns
 
 [![Reference](https://godoc.org/github.com/foxcpp/go-mockdns?status.svg)](https://godoc.org/github.com/foxcpp/go-mockdns)
 
 Boilerplate for testing of code involving DNS lookups, including ~~unholy~~
 hacks to redirect `net.Lookup*` calls.
 
-Example
----------
+## Example
 
 Trivial mock resolver, for cases where tested code supports custom resolvers:
 ```go
