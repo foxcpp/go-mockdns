@@ -103,6 +103,48 @@ func TestServer_PatchNet_LookupMX(t *testing.T) {
 	}
 }
 
+func TestServer_FollowCNAMEs(t *testing.T) {
+	srv, err := NewServer(map[string]Zone{
+		"foo.io.": {
+			CNAME: "bar.io.",
+		},
+		"bar.io.": {
+			CNAME: "example.org.",
+		},
+		"example.org.": {
+			A:    []string{"1.2.3.4"},
+			AAAA: []string{"::1"},
+		},
+	}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+
+	var r net.Resolver
+	srv.PatchNet(&r)
+
+	// LookupCNAME does not follow the CNAME chain and returns the first CNAME.
+	hostname, err := r.LookupCNAME(context.Background(), "foo.io")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hostname != "bar.io." {
+		t.Errorf("Wrong CNAME, want %q, got %q", "bar.io.", hostname)
+	}
+
+	// Any other Lookup* method including LookupHost follows the CNAME chain.
+	addrs, err := r.LookupHost(context.Background(), "foo.io")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sort.Strings(addrs)
+	want := []string{"1.2.3.4", "::1"}
+	if !reflect.DeepEqual(addrs, want) {
+		t.Errorf("Wrong result, want %v, got %v", want, addrs)
+	}
+}
+
 func TestServer_LookupTLSA(t *testing.T) {
 	rec := &dns.TLSA{
 		Hdr: dns.RR_Header{
@@ -158,7 +200,10 @@ func TestServer_Authoritative(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv.Resolver().SkipCNAME = true
+	// FIXME(maxim): I do not understand why SkipCNAME is needed at all in
+	//  resolver. DNS behavior is to follow CNAMEs unless queried for a CNAME,
+	//  Therefore there is no need for SkipCNAME in server tests.
+	//srv.Resolver().SkipCNAME = true
 	defer srv.Close()
 
 	msg := new(dns.Msg)
