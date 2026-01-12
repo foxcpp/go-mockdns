@@ -26,8 +26,7 @@ func TestServer_PatchNet(t *testing.T) {
 	assertNoError(t, err)
 	defer srv.Close()
 
-	var r net.Resolver
-	srv.PatchNet(&r)
+	r := srv.NewResolver()
 
 	// Existing zone with A and AAAA.
 	addrs, err := r.LookupHost(context.Background(), "example.org")
@@ -65,8 +64,7 @@ func TestServer_PatchNet_LookupMX(t *testing.T) {
 	assertNoError(t, err)
 	defer srv.Close()
 
-	var r net.Resolver
-	srv.PatchNet(&r)
+	r := srv.NewResolver()
 
 	mxs, err := r.LookupMX(context.Background(), "example.org")
 	assertNoError(t, err)
@@ -94,8 +92,7 @@ func TestServer_FollowCNAMEs(t *testing.T) {
 	assertNoError(t, err)
 	defer srv.Close()
 
-	var r net.Resolver
-	srv.PatchNet(&r)
+	r := srv.NewResolver()
 
 	// LookupCNAME does not follow the CNAME chain and returns the first CNAME.
 	hostname, err := r.LookupCNAME(context.Background(), "foo.io")
@@ -190,9 +187,7 @@ func TestServer_MutateRR(t *testing.T) {
 	}
 	defer srv.Close()
 
-	var r net.Resolver
-	srv.PatchNet(&r)
-
+	r := srv.NewResolver()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 

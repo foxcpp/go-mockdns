@@ -431,13 +431,20 @@ func (s *Server) PatchNet(r *net.Resolver) {
 	}
 }
 
+// NewResolver returns a new net.Resolver instance patched to connect to
+// this Server.
+func (s *Server) NewResolver() *net.Resolver {
+	r := new(net.Resolver)
+	s.PatchNet(r)
+	return r
+}
+
 func UnpatchNet(r *net.Resolver) {
 	r.PreferGo = false
 	r.Dial = nil
 }
 
-// Resolver returns the underlying Resolver object that can be used directly
-// to access Zones content.
+// Deprecated: use NewResolver() instead.
 func (s *Server) Resolver() *Resolver {
 	return &s.r
 }
