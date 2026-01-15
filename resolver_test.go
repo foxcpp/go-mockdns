@@ -2,6 +2,7 @@ package mockdns
 
 import (
 	"context"
+	"errors"
 	"net"
 	"reflect"
 	"sort"
@@ -34,29 +35,11 @@ func TestResolver_LookupHost(t *testing.T) {
 
 	// Existing zone without A or AAAA.
 	addrs, err = r.LookupHost(context.Background(), "example.net")
-	if err == nil {
-		t.Fatal("Expected error, got nil")
-	}
-	dnsErr, ok := err.(*net.DNSError)
-	if !ok {
-		t.Fatalf("err is not *net.DNSError, but %T", err)
-	}
-	if !isNotFound(dnsErr) {
-		t.Fatalf("err.IsNotFound is false, should be true")
-	}
+	assertNotFoundError(t, err)
 
 	// Non-existing zone.
 	_, err = r.LookupHost(context.Background(), "example.com")
-	if err == nil {
-		t.Fatal("Expected error, got nil")
-	}
-	dnsErr, ok = err.(*net.DNSError)
-	if !ok {
-		t.Fatalf("err is not *net.DNSError, but %T", err)
-	}
-	if !isNotFound(dnsErr) {
-		t.Fatalf("err.IsNotFound is false, should be true")
-	}
+	assertNotFoundError(t, err)
 
 	// Existing zone CNAME pointing to a zone with with A and AAAA.
 	addrs, err = r.LookupHost(context.Background(), "aaa.example.org")
@@ -113,5 +96,15 @@ func TestResolver_LookupIP(t *testing.T) {
 			}
 		})
 
+	}
+}
+
+func assertNotFoundError(t *testing.T, err error) {
+	var dnsErr *net.DNSError
+	if ok := errors.As(err, &dnsErr); !ok {
+		t.Fatalf("Expected DNSError, got %T", err)
+	}
+	if !dnsErr.IsNotFound {
+		t.Fatalf("Expected IsNotFound=true, got %v", dnsErr)
 	}
 }
