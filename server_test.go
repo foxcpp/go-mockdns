@@ -4,7 +4,6 @@ import (
 	"context"
 	"net"
 	"reflect"
-	"slices"
 	"sort"
 	"testing"
 	"time"
@@ -219,7 +218,7 @@ func TestServer_MutateRR(t *testing.T) {
 		assertNoError(t, err)
 		got, err = r.LookupHost(ctx, lookupName)
 		assertNoError(t, err)
-		slices.Sort(got)
+		sort.Sort(sort.StringSlice(got))
 		want = []string{"192.168.2.19", "2001:db8:130f::9c0:876a:130b", "81.19.128.3"}
 		if !reflect.DeepEqual(want, got) {
 			t.Fatalf("Wrong result: want=%v, got=%v", want, got)
