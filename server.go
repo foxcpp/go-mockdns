@@ -37,6 +37,7 @@ type Server struct {
 	stopped bool
 	tcpServ dns.Server
 	udpServ dns.Server
+	rcodes  map[string]int
 
 	Log           Logger
 	Authoritative bool
@@ -91,15 +92,17 @@ func NewServerWithLogger(zones map[string]Zone, l Logger, authoritative bool) (*
 }
 
 func (s *Server) writeErr(w dns.ResponseWriter, reply *dns.Msg, err error) {
-	reply.Rcode = dns.RcodeServerFailure
 	reply.RecursionAvailable = false
 	// A not found response may still include answers (e.g. CNAME chain).
 	//reply.Answer = nil
 	reply.Extra = nil
 
-	var dnsErr *net.DNSError
+	var (
+		rcode  int
+		dnsErr *net.DNSError
+	)
 	if errors.As(err, &dnsErr) && dnsErr.IsNotFound {
-		reply.Rcode = dns.RcodeNameError
+		rcode = dns.RcodeNameError
 		reply.RecursionAvailable = true
 		reply.Ns = []dns.RR{
 			&dns.SOA{
@@ -119,7 +122,14 @@ func (s *Server) writeErr(w dns.ResponseWriter, reply *dns.Msg, err error) {
 			},
 		}
 	} else {
+		rcode = dns.RcodeServerFailure
 		s.Log.Printf("lookup error: %v", err)
+	}
+
+	// If the rcode has not been explicitly set to something other than
+	// Success, then set it to the error code.
+	if reply.Rcode == dns.RcodeSuccess {
+		reply.Rcode = rcode
 	}
 
 	w.WriteMsg(reply)
@@ -190,6 +200,16 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
+	// Check if there is an explicit response code set for this query. If so,
+	// use it. If a response code is set for the name and type, it takes
+	// precedence over a response code set for the name only. This allows tests
+	// to simulate various error conditions.
+	if rcode := s.rcodes[rcodeKey(qname, q.Qtype)]; rcode != dns.RcodeSuccess {
+		reply.Rcode = rcode
+	} else if rcode := s.rcodes[qname]; rcode != dns.RcodeSuccess {
+		reply.Rcode = rcode
+	}
 
 	switch q.Qtype {
 	case dns.TypeA:
@@ -470,9 +490,7 @@ func (s *Server) AppendRR(name string, rrType uint16, rrData string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if !strings.HasSuffix(name, ".") {
-		name = name + "."
-	}
+	name = dotifyName(name)
 	zone := s.r.Zones[name]
 	switch rrType {
 	case dns.TypeA:
@@ -540,15 +558,52 @@ func (s *Server) AppendRR(name string, rrType uint16, rrData string) error {
 	return nil
 }
 
+// SetResponseCode sets the response code for all queries to the given name.
+// It is overridden by a response code set for the name and type. By setting
+// Success, any previously set response code for the name is removed.
+func (s *Server) SetResponseCode(name string, rcode int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	key := dotifyName(name)
+	s.setResponseCodeForKey(key, rcode)
+}
+
+// SetResponseCodeForType sets the response code for queries to the given name
+// and type. It takes precedence over a response code set for the name only. By
+// setting Success, any previously set response code for the name and type is
+// removed.
+func (s *Server) SetResponseCodeForType(name string, rrType uint16, rcode int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	key := rcodeKey(dotifyName(name), rrType)
+	s.setResponseCodeForKey(key, rcode)
+}
+
+func (s *Server) setResponseCodeForKey(key string, rcode int) {
+	if s.rcodes == nil {
+		s.rcodes = make(map[string]int)
+	}
+	if rcode == dns.RcodeSuccess {
+		delete(s.rcodes, key)
+		return
+	}
+	s.rcodes[key] = rcode
+	return
+}
+
+func rcodeKey(name string, rrType uint16) string {
+	return name + dns.Type(rrType).String()
+}
+
 // RemoveRR removes all records of the given type from the zone for the given
 // name. If the zone becomes empty, it is removed. The function is thread-safe.
 func (s *Server) RemoveRR(name string, rrType uint16) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if !strings.HasSuffix(name, ".") {
-		name = name + "."
-	}
+	name = dotifyName(name)
 	zone := s.r.Zones[name]
 	switch rrType {
 	case dns.TypeA:
@@ -581,6 +636,13 @@ func (s *Server) RemoveRR(name string, rrType uint16) {
 		return
 	}
 	s.r.Zones[name] = zone
+}
+
+func dotifyName(name string) string {
+	if !strings.HasSuffix(name, ".") {
+		return name + "."
+	}
+	return name
 }
 
 func isZoneEmpty(zone Zone) bool {

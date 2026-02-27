@@ -2,6 +2,7 @@ package mockdns
 
 import (
 	"context"
+	"errors"
 	"net"
 	"reflect"
 	"sort"
@@ -417,6 +418,79 @@ func TestServer_MutateRR(t *testing.T) {
 		_, err = r.LookupTXT(ctx, lookupName)
 		assertNotFoundError(t, err)
 	})
+}
+
+func TestServer_ExplicitResponseCodes(t *testing.T) {
+	srv, err := NewServer(nil, false)
+	assertNoError(t, err)
+	defer srv.Close()
+
+	srv.AppendRR("foo.io.", RRTypeTXT, "one")
+	srv.AppendRR("foo.io.", RRTypeA, "1.2.3.4")
+	srv.AppendRR("bar.io.", RRTypeTXT, "two")
+
+	r := srv.NewResolver()
+	// Force server to return on error immediately instead of retrying with
+	// other names.
+	r.StrictErrors = true
+
+	// Make sure that all requests succeed.
+	_, err = r.LookupTXT(context.Background(), "foo.io")
+	assertNoError(t, err)
+
+	_, err = r.LookupHost(context.Background(), "foo.io")
+	assertNoError(t, err)
+
+	_, err = r.LookupTXT(context.Background(), "bar.io")
+	assertNoError(t, err)
+
+	// Set explicit response code for A records of foo.io. Make sure that it
+	// does not affect TXT records of foo.io. and any record of bar.io.
+	srv.SetResponseCodeForType("foo.io.", RRTypeA, dns.RcodeServerFailure)
+
+	_, err = r.LookupTXT(context.Background(), "foo.io")
+	assertNoError(t, err)
+
+	_, err = r.LookupHost(context.Background(), "foo.io")
+	var dnsErr1 *net.DNSError
+	if !errors.As(err, &dnsErr1) || dnsErr1.Err != "server misbehaving" {
+		t.Fatalf("Expected error, got=%s", dnsErr1.Err)
+	}
+
+	_, err = r.LookupTXT(context.Background(), "bar.io")
+	assertNoError(t, err)
+
+	// Set explicit response code for A records of foo.io. back to success.
+	// Make sure that all requests succeed again.
+	srv.SetResponseCodeForType("foo.io.", RRTypeA, dns.RcodeSuccess)
+
+	_, err = r.LookupTXT(context.Background(), "foo.io")
+	assertNoError(t, err)
+
+	_, err = r.LookupHost(context.Background(), "foo.io")
+	assertNoError(t, err)
+
+	_, err = r.LookupTXT(context.Background(), "bar.io")
+	assertNoError(t, err)
+
+	// Set explicit response code for the whole zone. Make sure that it affects
+	// all requests for foo.io. but not for bar.io.
+	srv.SetResponseCode("foo.io.", dns.RcodeServerFailure)
+
+	_, err = r.LookupTXT(context.Background(), "foo.io")
+	var dnsErr2 *net.DNSError
+	if !errors.As(err, &dnsErr2) || dnsErr2.Err != "server misbehaving" {
+		t.Fatalf("Expected error, got=%s", dnsErr2.Err)
+	}
+
+	_, err = r.LookupHost(context.Background(), "foo.io")
+	var dnsErr3 *net.DNSError
+	if !errors.As(err, &dnsErr3) || dnsErr3.Err != "server misbehaving" {
+		t.Fatalf("Expected error, got=%s", dnsErr3.Err)
+	}
+
+	_, err = r.LookupTXT(context.Background(), "bar.io")
+	assertNoError(t, err)
 }
 
 func assertNoError(t *testing.T, err error) {
