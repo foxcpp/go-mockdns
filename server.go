@@ -344,6 +344,7 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 			return
 		}
 
+		reply.AuthenticatedData = rzone.AD
 		for _, name := range rzone.PTR {
 			reply.Answer = append(reply.Answer, &dns.PTR{
 				Hdr: dns.RR_Header{
@@ -380,6 +381,7 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 			return
 		}
 
+		reply.AuthenticatedData = rzone.AD
 		reply.Answer = append(reply.Answer, rzone.Misc[dns.Type(q.Qtype)]...)
 	}
 
