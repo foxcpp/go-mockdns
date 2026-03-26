@@ -315,6 +315,11 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 			s.writeErr(w, reply, notFound(rname))
 			return
 		}
+		if rzone.Err != nil {
+			s.writeErr(w, reply, rzone.Err)
+			return
+		}
+		reply.AuthenticatedData = rzone.AD
 		reply.Answer = append(reply.Answer, mkCname(rname, rzone.CNAME))
 
 	case dns.TypeTXT:
@@ -341,6 +346,10 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 		rzone, ok := s.r.Zones[q.Name]
 		if !ok {
 			s.writeErr(w, reply, notFound(q.Name))
+			return
+		}
+		if rzone.Err != nil {
+			s.writeErr(w, reply, rzone.Err)
 			return
 		}
 
@@ -378,6 +387,10 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, m *dns.Msg) {
 		rzone, ok := s.r.Zones[q.Name]
 		if !ok {
 			s.writeErr(w, reply, notFound(q.Name))
+			return
+		}
+		if rzone.Err != nil {
+			s.writeErr(w, reply, rzone.Err)
 			return
 		}
 
